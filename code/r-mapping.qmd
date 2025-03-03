@@ -1,0 +1,154 @@
+
+
+```{r}
+
+#remove scientific notation
+options(scipen=999)
+
+### Run this line to install all packages, if needed. 
+#install.packages(c("sf", "tidyverse", "leaflet", "mapview", "janitor", "lubridate", "tidycensus", "lwgeom", "tigris"))
+
+### Call our packages into our script here.
+library(sf)
+library(tidyverse)
+library(janitor)
+library(mapview)
+library(lubridate)
+library(tidycensus)
+library(tigris)
+library(lwgeom)
+
+sf_use_s2(FALSE)
+
+
+```
+
+
+## Behind the scenes with geo files
+
+Helpful Minneapolis codes:
+- Minnesota is state fips 27
+- Minneapolis is in Hennepin County, which is county fips 27053.
+
+Where to download/find these GIS files for your state!
+- **Schools:** [The NCES EDGE open data portal](https://data-nces.opendata.arcgis.com/) contains all sorts of helpful data, including school locations.
+- **Neighborhoods:** check your city GIS site
+- **Toxic Release Inventory:** Multiple years and states [available here](https://www.epa.gov/toxics-release-inventory-tri-program/tri-basic-data-files-calendar-years-1987-present)
+- **Census Tigerline URLs:** [pick your vintage here](https://www.census.gov/geographies/mapping-files/time-series/geo/tiger-line-file.html), then click FTP Archive and navigate to the shapefile you need.
+
+```{r}
+
+#importing shapefiles and geojson
+schools <- st_read("../GIS/nces-mn-schools.geojson") |>
+  # a function that cleans up column names
+  clean_names()
+
+#importing from zip
+hoods = st_read("../GIS/Minneapolis_Neighborhoods_4501150611105070206/Minneapolis_Neighborhoods.shp") |>
+  clean_names()
+
+#importing from library/api
+mn_counties <- tracts(state = "MN", cb = TRUE)
+
+#importing from csv
+
+tri <- read_csv("../GIS/epa-tri-2023-mn.csv") |>
+  clean_names() |>
+  st_as_sf(coords = c("x13_longitude", "x12_latitude"), crs = 4326)
+
+```
+
+```{r}
+
+#exploring geospatial data is just like exploring any other dataframe
+
+glimpse(schools)
+
+```
+
+```{r}
+
+head(schools)
+
+```
+
+```{r}
+
+#lets take a closer look at the geometry column
+
+schools |>
+  select(geometry)
+
+```
+
+```{r}
+
+# we can also look at the projection of the data using mapview
+
+st_crs(schools)
+
+```
+
+```{r}
+
+#now you try looking at the other geodataframes crs
+
+```
+
+
+Cam is going to talk about projects here for a minute. They're important friends.
+
+```{r}
+
+mapview(schools)
+
+```
+
+## Slaying with APIs
+A lot of ArcGIS maps have helpful API portals that will walk you thru querying and downloading the geojson.
+
+Here's a video that shows you how to find that query page when you're looking at an ArcGIS map online:
+
+Some of the data you try and pull down will clearly be accessible via API. Here's a video that shows you how to find the API page: 
+
+```{r}
+
+potholes <- read_sf("https://services.arcgis.com/afSMGVsC7QlRK1kZ/arcgis/rest/services/Public_311_2024/FeatureServer/0/query?where=TYPENAME%20%3D%20'Pothole'&outFields=*&outSR=4326&f=json")
+
+glimpse(potholes)
+
+mapview(potholes)
+
+```
+
+
+```{r}
+
+#sometimes an API requires an access key
+#here's an example oh how to get Census ACS 5-yr data via the API
+#and more info on the various APIs https://www.census.gov/data/developers/data-sets/acs-5year.html
+#NOTE: different tables (detailed, subject, etc) have different geography levels available
+
+
+
+tracts <- get_acs(geography = "tract", 
+        variables = c("B01001_001", "B11016_001", "B19013_001"), #picking the variables we want
+        state = "MN", #setting the state to minnesota
+        geometry = FALSE, # not including the geometry
+        cache_table = TRUE) |> #caching the data so we don't call the API multiple times
+  select(-moe) |> #removing the margin of error columns
+  pivot_wider(values_from = estimate, names_from = variable) |> #pivoting the data wider so each column is a variable
+  rename(total_pop = B01001_001, #renaming the columns to be more descriptive
+         households = B11016_001, 
+         median_income = B19013_001) 
+
+```
+
+
+
+
+
+
+
+
+
